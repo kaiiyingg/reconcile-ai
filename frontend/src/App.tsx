@@ -7,6 +7,8 @@ import DashboardPage from "./pages/Dashboard";
 import UploadPage from "./pages/Upload";
 import PredictionsPage from "./pages/Predictions";
 import ReportsPage from "./pages/Reports";
+import LoginPage from "./pages/Login";
+import RegisterPage from "./pages/Register";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -18,6 +20,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="/" element={<DashboardPage />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/predictions" element={<PredictionsPage />} />

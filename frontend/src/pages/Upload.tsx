@@ -13,6 +13,7 @@ import {
   Upload as UploadIcon,
   FileSpreadsheet,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -127,6 +128,40 @@ export default function UploadPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 File must include columns: ID, Amount, Category, Timestamp
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate Sample Data</CardTitle>
+            <CardDescription>
+              Generate a sample CSV file with transaction data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button
+              onClick={() => {
+                setUploading(true);
+                // TODO: Call API endpoint to generate sample data
+                setTimeout(() => {
+                  setUploading(false);
+                  alert("Sample data generated successfully!");
+                }, 2000);
+              }}
+              disabled={uploading}
+              className="min-w-[140px]"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {uploading ? "Generating..." : "Generate"}
+            </Button>
+
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Sample file includes 100 transactions with various categories,
+                amounts and timestamps
               </AlertDescription>
             </Alert>
           </CardContent>
