@@ -1,20 +1,10 @@
-import {
-  LayoutDashboard,
-  ArrowUpDown,
-  AlertTriangle,
-  BarChart3,
-  FileText,
-  Zap,
-  BookOpen,
-  TrendingUp,
-} from "lucide-react";
+import { LayoutDashboard, Upload, TrendingUp, FileText } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -23,13 +13,10 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Overview", url: "/", icon: LayoutDashboard },
-  { title: "Transactions", url: "/transactions", icon: ArrowUpDown },
-  { title: "Anomalies", url: "/anomalies", icon: AlertTriangle },
-  { title: "Forecasting", url: "/forecasting", icon: BarChart3 },
-  { title: "Ledger Comparison", url: "/ledger", icon: BookOpen },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Upload", url: "/upload", icon: Upload },
+  { title: "Predictions", url: "/predictions", icon: TrendingUp },
   { title: "Reports", url: "/reports", icon: FileText },
-  { title: "Stress Test", url: "/stress-test", icon: Zap },
 ];
 
 export function AppSidebar() {
@@ -52,9 +39,6 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs uppercase tracking-widest text-sidebar-foreground/60">
-            {!collapsed && "Platform"}
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (

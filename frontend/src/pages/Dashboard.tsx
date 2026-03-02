@@ -7,7 +7,6 @@ import { TransactionTable } from "@/components/dashboard/TransactionTable";
 import { PredictionChart } from "@/components/dashboard/PredictionChart";
 import { Filters } from "@/components/dashboard/Filters";
 import { LedgerComparison } from "@/components/dashboard/LedgerComparison";
-import { ReportsPanel } from "@/components/dashboard/ReportsPanel";
 import { mockTransactions, mockChartData } from "@/data/mockData";
 
 export function DashboardLayout({ children }: { children?: React.ReactNode }) {
@@ -17,9 +16,7 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
-          <main className="flex-1 overflow-auto p-6">
-            {children}
-          </main>
+          <main className="flex-1 overflow-auto p-6">{children}</main>
         </div>
       </div>
     </SidebarProvider>
@@ -34,8 +31,14 @@ export default function DashboardPage() {
   const filtered = useMemo(() => {
     return mockTransactions.filter((t) => {
       if (category !== "all" && t.category !== category) return false;
-      if (anomalyFilter !== "all" && t.anomalyFlag !== anomalyFilter) return false;
-      if (search && !t.id.toLowerCase().includes(search.toLowerCase()) && !t.category.toLowerCase().includes(search.toLowerCase())) return false;
+      if (anomalyFilter !== "all" && t.anomalyFlag !== anomalyFilter)
+        return false;
+      if (
+        search &&
+        !t.id.toLowerCase().includes(search.toLowerCase()) &&
+        !t.category.toLowerCase().includes(search.toLowerCase())
+      )
+        return false;
       return true;
     });
   }, [category, anomalyFilter, search]);
@@ -43,7 +46,15 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-[1400px]">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-2">
+            Real-time transaction monitoring and anomaly detection
+          </p>
+        </div>
+
         <KPICards transactions={filtered} />
+
         <Filters
           category={category}
           setCategory={setCategory}
@@ -52,15 +63,11 @@ export default function DashboardPage() {
           search={search}
           setSearch={setSearch}
         />
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-2">
-            <PredictionChart data={mockChartData} />
-          </div>
-          <div>
-            <ReportsPanel transactions={filtered} />
-          </div>
-        </div>
+
+        <PredictionChart data={mockChartData} />
+
         <TransactionTable transactions={filtered} />
+
         <LedgerComparison transactions={mockTransactions} />
       </div>
     </DashboardLayout>
