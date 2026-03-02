@@ -29,10 +29,24 @@ export function DashboardHeader() {
             {user.full_name || user.email}
           </span>
         )}
-        <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-8 w-8 text-muted-foreground hover:text-foreground">
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-4 w-4" />
+          ) : (
+            <Moon className="h-4 w-4" />
+          )}
         </Button>
-        <Button variant="ghost" size="icon" onClick={handleLogout} className="h-8 w-8 text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleLogout}
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        >
           <LogOut className="h-4 w-4" />
         </Button>
       </div>
