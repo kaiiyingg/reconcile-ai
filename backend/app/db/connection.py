@@ -5,30 +5,36 @@ from dotenv import load_dotenv # type: ignore
 load_dotenv()  # Load environment variables from .env file
 
 # Supabase/PostgreSQL connection details from .env
-PG_DATABASE = os.getenv('DB_NAME')
-PG_USER = os.getenv('DB_USER')
-PG_PASSWORD = os.getenv('DB_PASSWORD')
-PG_HOST = os.getenv('DB_HOST')
-PG_PORT = os.getenv('DB_PORT', 5432)
+# Using Supabase naming convention (lowercase)
+USER = os.getenv('user')
+PASSWORD = os.getenv('password') 
+HOST = os.getenv('host')
+PORT = os.getenv('port') 
+DBNAME = os.getenv('dbname') 
 
 """
-This module handles database connections and schema/index creation for the TechPulse application.
-It loads database credentials from environment variables and uses psycopg2 to interact with PostgreSQL.
-Run "python src/database/connection.py" to create tables, indexes, and metadata tables based on SQL scripts in the same directory.
+This module handles database connections and schema/index creation for the ReconcileAI application.
+It loads database credentials from environment variables and uses psycopg2 to interact with PostgreSQL/Supabase.
+Run "python app/db/connection.py" to create tables, indexes, and metadata tables based on SQL scripts in the same directory.
 
 All .sql files in this directory will be executed, including:
 """
 
 def get_db_connection():
     """Establishes and returns a database connection."""
-    conn = psycopg2.connect(
-        dbname=PG_DATABASE,
-        user=PG_USER,
-        password=PG_PASSWORD,
-        host=PG_HOST,
-        port=PG_PORT
-    )
-    return conn
+    try:
+        conn = psycopg2.connect(
+            user=USER,
+            password=PASSWORD,
+            host=HOST,
+            port=PORT,
+            dbname=DBNAME
+        )
+        print("Connection successful!")
+        return conn
+    except Exception as e:
+        print(f"Failed to connect: {e}")
+        raise
 
 def close_db_connection(conn):
     """Closes the database connection."""
@@ -59,11 +65,11 @@ def create_tables():
                         if 'CREATE INDEX CONCURRENTLY' in stmt.upper():
                             import psycopg2
                             conn_ac = psycopg2.connect(
-                                dbname=PG_DATABASE,
-                                user=PG_USER,
-                                password=PG_PASSWORD,
-                                host=PG_HOST,
-                                port=PG_PORT
+                                user=USER,
+                                password=PASSWORD,
+                                host=HOST,
+                                port=PORT,
+                                dbname=DBNAME
                             )
                             conn_ac.autocommit = True
                             cursor_ac = conn_ac.cursor()
