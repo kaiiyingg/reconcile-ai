@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,30 +12,29 @@ import {
 } from "@/components/ui/card";
 import { TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    // TODO: Implement actual login logic with backend API
-    setTimeout(() => {
-      if (email && password) {
-        // Simulate successful login
-        console.log("Login successful", { email, password });
-        // Redirect to dashboard
-        window.location.href = "/";
-      } else {
-        setError("Please enter both email and password");
-      }
+    try {
+      await login(email, password);
+      navigate("/");
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please check your credentials.");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (

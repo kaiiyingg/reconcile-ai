@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Register() {
   const [fullName, setFullName] = useState("");
@@ -19,12 +21,13 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { register } = useAuth();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    // Validation
     if (!fullName || !email || !password || !confirmPassword) {
       setError("Please fill in all fields");
       return;
@@ -42,14 +45,14 @@ export default function Register() {
 
     setLoading(true);
 
-    // TODO: Implement actual registration logic with backend API
-    setTimeout(() => {
-      // Simulate successful registration
-      console.log("Registration successful", { fullName, email, password });
-      // Redirect to login or dashboard
-      window.location.href = "/login";
+    try {
+      await register(email, password, fullName);
+      navigate("/");
+    } catch (err: any) {
+      setError(err.message || "Registration failed. Please try again.");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
