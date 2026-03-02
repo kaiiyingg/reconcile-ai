@@ -8,27 +8,18 @@ import uuid
 
 
 class UserRegister(BaseModel):
-    email: str
+    username: str
     password: str = Field(..., min_length=8)
-    full_name: str
-    company_name: Optional[str] = None
 
 
 class UserLogin(BaseModel):
-    email: str
+    username: str
     password: str
-
-
-class TokenRefresh(BaseModel):
-    refresh_token: str
 
 
 class UserResponse(BaseModel):
     id: uuid.UUID
-    email: str
-    full_name: Optional[str]
-    company_name: Optional[str]
-    role: str
+    username: str
     is_active: bool
     created_at: datetime
     
@@ -36,19 +27,9 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
-
-
 class LoginResponse(BaseModel):
     user: UserResponse
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
+    success: bool = True
 
 
 class MessageResponse(BaseModel):

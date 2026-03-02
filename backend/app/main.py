@@ -4,11 +4,7 @@ Main entry point for the API server
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth
-
-# =====================================================
-# CREATE FASTAPI APP
-# =====================================================
+from app.routes import auth, transactions, predictions, anomalies, insights, reports, websocket
 
 app = FastAPI(
     title="ReconcileAI API",
@@ -18,27 +14,21 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# =====================================================
-# CORS MIDDLEWARE
-# =====================================================
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://localhost:5173"],  # Frontend URLs
+    allow_origins=["http://localhost:8080", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# =====================================================
-# INCLUDE ROUTERS
-# =====================================================
-
 app.include_router(auth.router)
-
-# =====================================================
-# ROOT ENDPOINT
-# =====================================================
+app.include_router(transactions.router)
+app.include_router(predictions.router)
+app.include_router(anomalies.router)
+app.include_router(insights.router)
+app.include_router(reports.router)
+app.include_router(websocket.router)
 
 @app.get("/")
 async def root():
@@ -55,10 +45,6 @@ async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "ReconcileAI API"}
 
-
-# =====================================================
-# RUN SERVER
-# =====================================================
 
 if __name__ == "__main__":
     import uvicorn

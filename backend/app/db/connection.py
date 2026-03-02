@@ -53,10 +53,16 @@ def create_tables():
         sql_dir = os.path.dirname(os.path.abspath(__file__))
         sql_files = [f for f in os.listdir(sql_dir) if f.endswith('.sql')]
         sql_files.sort()
+        
+        print(f"Found {len(sql_files)} SQL files to execute: {sql_files}")
+        
         for sql_file in sql_files:
             file_path = os.path.join(sql_dir, sql_file)
+            print(f"\n--- Processing {sql_file} ---")
+            
             with open(file_path, 'r', encoding='utf-8') as f:
                 sql = f.read()
+                
                 if 'CREATE INDEX CONCURRENTLY' in sql.upper():
                     print(f"Executing {sql_file} in autocommit mode (for CONCURRENTLY indexes)...")
                     # Split into individual statements (naive split on semicolon, but only for CREATE INDEX CONCURRENTLY)
@@ -78,12 +84,21 @@ def create_tables():
                             cursor_ac.close()
                             conn_ac.close()
                 else:
-                    cursor.execute(sql)
-                    print(f"Executed {sql_file}")
+                    try:
+                        cursor.execute(sql)
+                        print(f"✓ Successfully executed {sql_file}")
+                    except Exception as sql_error:
+                        print(f"✗ Error in {sql_file}: {sql_error}")
+                        raise
+                        
         conn.commit()
-        print("All SQL scripts executed and tables created successfully.")
+        print("\n✓ All SQL scripts executed and tables created successfully.")
     except Exception as e:
-        print(f"An error occurred while creating tables: {e}")
+        print(f"\n✗ An error occurred while creating tables: {e}")
+        import traceback
+        traceback.print_exc()
+        if conn:
+            conn.rollback()
     finally:
         close_db_connection(conn)
 
