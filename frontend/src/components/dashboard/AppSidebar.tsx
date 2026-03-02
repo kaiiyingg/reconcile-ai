@@ -6,6 +6,7 @@ import {
   FileText,
   Zap,
   BookOpen,
+  TrendingUp,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -40,7 +41,7 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
-            <Zap className="h-4 w-4 text-primary-foreground" />
+            <TrendingUp className="h-4 w-4 text-primary-foreground" />
           </div>
           {!collapsed && (
             <span className="font-display text-base font-bold tracking-tight text-sidebar-accent-foreground">
