@@ -1,7 +1,8 @@
 """
 Transaction routes: upload CSV, generate mock data, fetch transactions
+User ID must be provided by frontend (from logged-in user data)
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Query
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Header
 from typing import Optional, List
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -11,13 +12,12 @@ from datetime import datetime, timedelta
 import random
 import uuid
 
-from app.models.transaction import (
+from app.domain.transaction import (
     TransactionCreate,
     TransactionResponse,
     TransactionListResponse,
     CSVUploadResponse
 )
-from app.routes.auth import get_current_user
 from app.db.connection import get_db_connection
 
 router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
@@ -26,9 +26,11 @@ router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
 @router.post("/upload", response_model=CSVUploadResponse)
 async def upload_transactions(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    x_user_id: str = Header(..., description="User ID from logged-in user")
 ):
     """Upload CSV/Excel file with transactions"""
+    
+    user_id = x_user_id
     
     if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="File must be CSV or Excel format")
@@ -64,7 +66,7 @@ async def upload_transactions(
                     """,
                     (
                         uuid.uuid4(),
-                        current_user['id'],
+                        user_id,
                         pd.to_datetime(row['timestamp']),
                         float(row['amount']),
                         str(row['category']),
@@ -96,9 +98,11 @@ async def upload_transactions(
 @router.post("/generate-demo", response_model=CSVUploadResponse)
 async def generate_demo_transactions(
     count: int = Query(default=100, ge=10, le=1000),
-    current_user: dict = Depends(get_current_user)
+    x_user_id: str = Header(..., description="User ID from logged-in user")
 ):
     """Generate demo/mock transaction data"""
+    
+    user_id = x_user_id
     
     categories = ['Revenue', 'Expense', 'Payroll', 'Marketing', 'Operations', 'Sales', 'Refund']
     accounts = ['ACC001', 'ACC002', 'ACC003', 'ACC004']
@@ -126,7 +130,7 @@ async def generate_demo_transactions(
                 """,
                 (
                     uuid.uuid4(),
-                    current_user['id'],
+                    user_id,
                     transaction_date,
                     round(amount, 2),
                     category,
@@ -162,16 +166,18 @@ async def get_transactions(
     status: Optional[str] = None,
     limit: int = Query(default=100, le=1000),
     offset: int = Query(default=0, ge=0),
-    current_user: dict = Depends(get_current_user)
+    x_user_id: str = Header(..., description="User ID from logged-in user")
 ):
     """Fetch all transactions with optional filters"""
+    
+    user_id = x_user_id
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         query = "SELECT * FROM transactions WHERE user_id = %s"
-        params = [current_user['id']]
+        params = [user_id]
         
         if start_date:
             query += " AND timestamp >= %s"
@@ -216,9 +222,11 @@ async def get_transactions(
 @router.get("/{transaction_id}", response_model=TransactionResponse)
 async def get_transaction(
     transaction_id: str,
-    current_user: dict = Depends(get_current_user)
+    x_user_id: str = Header(..., description="User ID from logged-in user")
 ):
     """Get a single transaction by ID"""
+    
+    user_id = x_user_id
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -226,7 +234,7 @@ async def get_transaction(
     try:
         cursor.execute(
             "SELECT * FROM transactions WHERE id = %s AND user_id = %s",
-            (transaction_id, current_user['id'])
+            (transaction_id, user_id)
         )
         transaction = cursor.fetchone()
         

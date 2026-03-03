@@ -1,7 +1,7 @@
 """
 Prediction routes: run prediction models, fetch predictions
 """
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Header, Query
 from typing import Optional, List
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -10,13 +10,12 @@ import random
 import uuid
 from decimal import Decimal
 
-from app.models.prediction import (
+from app.domain.prediction import (
     PredictionResponse,
     PredictionListResponse,
     ForecastRequest,
     ForecastResponse
 )
-from app.routes.auth import get_current_user
 from app.db.connection import get_db_connection
 
 router = APIRouter(prefix="/api/predictions", tags=["Predictions"])
@@ -25,7 +24,7 @@ router = APIRouter(prefix="/api/predictions", tags=["Predictions"])
 @router.post("/run")
 async def run_predictions(
     forecast: ForecastRequest,
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Run prediction models for specified forecast horizon"""
     
@@ -41,7 +40,7 @@ async def run_predictions(
             ORDER BY timestamp DESC
             LIMIT 100
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         transactions = cursor.fetchall()
         
@@ -70,7 +69,7 @@ async def run_predictions(
                 """,
                 (
                     uuid.uuid4(),
-                    current_user['id'],
+                    user_id,
                     forecast.model_type,
                     round(predicted_amount, 2),
                     round(confidence, 4),
@@ -107,7 +106,7 @@ async def get_predictions(
     model_type: Optional[str] = None,
     limit: int = Query(default=100, le=1000),
     offset: int = Query(default=0, ge=0),
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Fetch predictions with optional filters"""
     
@@ -116,7 +115,7 @@ async def get_predictions(
     
     try:
         query = "SELECT * FROM predictions WHERE user_id = %s"
-        params = [current_user['id']]
+        params = [user_id]
         
         if start_date:
             query += " AND forecast_date >= %s"
@@ -157,7 +156,7 @@ async def get_predictions(
 @router.get("/forecast", response_model=List[ForecastResponse])
 async def get_forecast(
     days: int = Query(default=7, ge=1, le=90),
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Get forecast for next N days"""
     
@@ -176,7 +175,7 @@ async def get_forecast(
             AND forecast_date <= %s
             ORDER BY forecast_date ASC
             """,
-            (current_user['id'], end_date)
+            (user_id, end_date)
         )
         forecasts = cursor.fetchall()
         

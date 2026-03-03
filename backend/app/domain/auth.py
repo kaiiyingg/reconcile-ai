@@ -1,26 +1,25 @@
 """
-Authentication models and schemas
+Authentication models and schemas for Supabase Auth
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
-import uuid
 
 
 class UserRegister(BaseModel):
-    username: str
+    email: EmailStr
     password: str = Field(..., min_length=8)
 
 
 class UserLogin(BaseModel):
-    username: str
+    email: EmailStr
     password: str
 
 
 class UserResponse(BaseModel):
-    id: uuid.UUID
-    username: str
-    created_at: datetime
+    id: str
+    email: str
+    created_at: str
     
     class Config:
         from_attributes = True
@@ -28,6 +27,8 @@ class UserResponse(BaseModel):
 
 class LoginResponse(BaseModel):
     user: UserResponse
+    access_token: str
+    refresh_token: str
     success: bool = True
 
 

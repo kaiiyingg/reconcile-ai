@@ -1,7 +1,7 @@
 """
 Anomaly routes: run anomaly detection, fetch anomalies
 """
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Header, Query
 from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -9,13 +9,12 @@ from datetime import datetime
 import random
 import uuid
 
-from app.models.anomaly import (
+from app.domain.anomaly import (
     AnomalyResponse,
     AnomalyListResponse,
     AnomalyUpdate,
     AnomalyStatsResponse
 )
-from app.routes.auth import get_current_user
 from app.db.connection import get_db_connection
 
 router = APIRouter(prefix="/api/anomalies", tags=["Anomalies"])
@@ -24,7 +23,7 @@ router = APIRouter(prefix="/api/anomalies", tags=["Anomalies"])
 @router.post("/run")
 async def run_anomaly_detection(
     threshold: float = Query(default=0.75, ge=0.0, le=1.0),
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Run anomaly detection on transactions"""
     
@@ -40,7 +39,7 @@ async def run_anomaly_detection(
             ORDER BY timestamp DESC
             LIMIT 500
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         transactions = cursor.fetchall()
         
@@ -85,7 +84,7 @@ async def run_anomaly_detection(
                     """,
                     (
                         uuid.uuid4(),
-                        current_user['id'],
+                        user_id,
                         txn['id'],
                         round(anomaly_score, 4),
                         severity,
@@ -122,7 +121,7 @@ async def get_anomalies(
     reviewed: Optional[bool] = None,
     limit: int = Query(default=100, le=1000),
     offset: int = Query(default=0, ge=0),
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Fetch anomalies with optional filters"""
     
@@ -131,7 +130,7 @@ async def get_anomalies(
     
     try:
         query = "SELECT * FROM anomalies WHERE user_id = %s"
-        params = [current_user['id']]
+        params = [user_id]
         
         if severity:
             query += " AND severity = %s"
@@ -173,7 +172,7 @@ async def get_anomalies(
 async def update_anomaly(
     anomaly_id: str,
     update_data: AnomalyUpdate,
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Update anomaly (mark as reviewed, add notes, etc.)"""
     
@@ -194,7 +193,7 @@ async def update_anomaly(
             if update_data.reviewed:
                 updates.append("reviewed_by = %s")
                 updates.append("reviewed_at = NOW()")
-                params.append(current_user['id'])
+                params.append(user_id)
         
         if update_data.resolution_notes:
             updates.append("resolution_notes = %s")
@@ -204,7 +203,7 @@ async def update_anomaly(
             raise HTTPException(status_code=400, detail="No updates provided")
         
         query = f"UPDATE anomalies SET {', '.join(updates)} WHERE id = %s AND user_id = %s"
-        params.extend([anomaly_id, current_user['id']])
+        params.extend([anomaly_id, user_id])
         
         cursor.execute(query, params)
         
@@ -228,7 +227,7 @@ async def update_anomaly(
 
 @router.get("/stats", response_model=AnomalyStatsResponse)
 async def get_anomaly_stats(
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Get anomaly statistics for dashboard"""
     
@@ -238,19 +237,19 @@ async def get_anomaly_stats(
     try:
         cursor.execute(
             "SELECT COUNT(*) as total FROM anomalies WHERE user_id = %s",
-            (current_user['id'],)
+            (user_id,)
         )
         total_anomalies = cursor.fetchone()['total']
         
         cursor.execute(
             "SELECT COUNT(*) as flagged FROM anomalies WHERE user_id = %s AND flagged = TRUE",
-            (current_user['id'],)
+            (user_id,)
         )
         flagged_count = cursor.fetchone()['flagged']
         
         cursor.execute(
             "SELECT COUNT(*) as unreviewed FROM anomalies WHERE user_id = %s AND reviewed = FALSE",
-            (current_user['id'],)
+            (user_id,)
         )
         unreviewed_count = cursor.fetchone()['unreviewed']
         
@@ -261,7 +260,7 @@ async def get_anomaly_stats(
             WHERE user_id = %s
             GROUP BY severity
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         severity_data = cursor.fetchall()
         severity_breakdown = {row['severity']: row['count'] for row in severity_data}
@@ -273,7 +272,7 @@ async def get_anomaly_stats(
             ORDER BY detected_at DESC
             LIMIT 5
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         recent = cursor.fetchall()
         

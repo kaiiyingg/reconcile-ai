@@ -15,7 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Register() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ export default function Register() {
     e.preventDefault();
     setError("");
 
-    if (!username || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword) {
       setError("Please fill in all fields");
       return;
     }
@@ -45,7 +45,7 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await register(username, password);
+      await register(email, password);
       navigate("/");
     } catch (err: any) {
       setError(err.message || "Registration failed. Please try again.");
@@ -75,13 +75,13 @@ export default function Register() {
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Choose a username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
               />

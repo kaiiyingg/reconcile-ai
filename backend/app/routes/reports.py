@@ -1,7 +1,7 @@
 """
 Reports routes: generate CSV and PDF reports
 """
-from fastapi import APIRouter, HTTPException, Depends, Query, Response
+from fastapi import APIRouter, HTTPException, Header, Query, Response
 from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -9,7 +9,7 @@ import pandas as pd
 import io
 from datetime import datetime
 
-from app.routes.auth import get_current_user
+
 from app.db.connection import get_db_connection
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
@@ -20,7 +20,7 @@ async def generate_csv_report(
     report_type: str = Query(default="transactions", regex="^(transactions|predictions|anomalies|full)$"),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Generate CSV report"""
     
@@ -30,7 +30,7 @@ async def generate_csv_report(
     try:
         if report_type == "transactions" or report_type == "full":
             query = "SELECT * FROM transactions WHERE user_id = %s"
-            params = [current_user['id']]
+            params = [user_id]
             
             if start_date:
                 query += " AND timestamp >= %s"
@@ -67,7 +67,7 @@ async def generate_csv_report(
         
         elif report_type == "predictions":
             query = "SELECT * FROM predictions WHERE user_id = %s"
-            params = [current_user['id']]
+            params = [user_id]
             
             if start_date:
                 query += " AND forecast_date >= %s"
@@ -109,7 +109,7 @@ async def generate_csv_report(
                 LEFT JOIN transactions t ON a.transaction_id = t.id
                 WHERE a.user_id = %s
             """
-            params = [current_user['id']]
+            params = [user_id]
             
             if start_date:
                 query += " AND a.detected_at >= %s"
@@ -154,7 +154,7 @@ async def generate_csv_report(
 
 @router.get("/summary")
 async def get_report_summary(
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ):
     """Get summary statistics for reports dashboard"""
     
@@ -164,19 +164,19 @@ async def get_report_summary(
     try:
         cursor.execute(
             "SELECT COUNT(*) as total FROM transactions WHERE user_id = %s",
-            (current_user['id'],)
+            (user_id,)
         )
         total_transactions = cursor.fetchone()['total']
         
         cursor.execute(
             "SELECT COUNT(*) as total FROM predictions WHERE user_id = %s",
-            (current_user['id'],)
+            (user_id,)
         )
         total_predictions = cursor.fetchone()['total']
         
         cursor.execute(
             "SELECT COUNT(*) as total FROM anomalies WHERE user_id = %s",
-            (current_user['id'],)
+            (user_id,)
         )
         total_anomalies = cursor.fetchone()['total']
         
@@ -186,7 +186,7 @@ async def get_report_summary(
             FROM transactions
             WHERE user_id = %s AND status = 'completed'
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         total_amount = cursor.fetchone()['total_amount'] or 0
         

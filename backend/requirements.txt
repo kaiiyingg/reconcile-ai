@@ -1,6 +1,7 @@
 fastapi==0.109.1               # Web framework
 uvicorn[standard]==0.22.0      # ASGI server to run FastAPI
 pydantic==2.5.3                # Data validation and settings management
+email-validator==2.3.0         # Email validation for Pydantic EmailStr
 pandas==2.1.0                  # For handling CSV / data frames
 numpy==1.26.0                  # Numeric computations
 scikit-learn==1.3.2            # ML models: Gradient Boosting, Isolation Forest
@@ -8,5 +9,4 @@ python-multipart==0.0.6        # For CSV / file uploads
 SQLAlchemy==2.0.23             # ORM for database (compatible with Python 3.9)
 python-dotenv==1.0.0           # Load environment variables from .env file
 psycopg2-binary==2.9.9         # PostgreSQL adapter for Supabase connection
-PyJWT==2.8.0                   # JWT token creation and validation
-passlib[bcrypt]==1.7.4         # Password hashing with bcrypt
+supabase==2.3.0                # Supabase client for authentication and database

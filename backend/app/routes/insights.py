@@ -7,7 +7,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 
-from app.routes.auth import get_current_user
+
 from app.db.connection import get_db_connection
 
 router = APIRouter(prefix="/api/insights", tags=["Insights"])
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/insights", tags=["Insights"])
 
 @router.get("")
 async def get_insights(
-    current_user: dict = Depends(get_current_user)
+    user_id: str = Header(..., alias="x-user-id")
 ) -> List[Dict[str, Any]]:
     """Generate actionable insights from predictions and anomalies"""
     
@@ -31,7 +31,7 @@ async def get_insights(
             FROM anomalies
             WHERE user_id = %s AND severity = 'critical' AND reviewed = FALSE
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         critical_anomalies = cursor.fetchone()['critical_count']
         
@@ -51,7 +51,7 @@ async def get_insights(
             FROM anomalies
             WHERE user_id = %s AND severity = 'high' AND reviewed = FALSE
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         high_anomalies = cursor.fetchone()['high_count']
         
@@ -73,7 +73,7 @@ async def get_insights(
             ORDER BY forecast_date ASC
             LIMIT 7
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         upcoming_predictions = cursor.fetchall()
         
@@ -86,7 +86,7 @@ async def get_insights(
                 FROM transactions
                 WHERE user_id = %s AND timestamp >= NOW() - INTERVAL '30 days'
                 """,
-                (current_user['id'],)
+                (user_id,)
             )
             current_avg = cursor.fetchone()['avg_amount']
             
@@ -115,7 +115,7 @@ async def get_insights(
             FROM anomalies
             WHERE user_id = %s AND reviewed = FALSE
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         unreviewed = cursor.fetchone()['unreviewed']
         
@@ -135,7 +135,7 @@ async def get_insights(
             FROM transactions
             WHERE user_id = %s AND timestamp >= NOW() - INTERVAL '7 days'
             """,
-            (current_user['id'],)
+            (user_id,)
         )
         recent_txns = cursor.fetchone()['txn_count']
         
