@@ -40,7 +40,7 @@ async def register(user_data: UserRegister):
             """
             INSERT INTO users (id, username, password_hash)
             VALUES (%s, %s, %s)
-            RETURNING id, username, role, is_active, created_at
+            RETURNING id, username, created_at
             """,
             (user_id, user_data.username, user_data.password)
         )
@@ -76,7 +76,7 @@ async def login(credentials: UserLogin):
     try:
         cursor.execute(
             """
-            SELECT id, username, password_hash, role, is_active, created_at
+            SELECT id, username, password_hash, created_at
             FROM users WHERE username = %s
             """,
             (credentials.username,)
@@ -94,12 +94,6 @@ async def login(credentials: UserLogin):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid username or password"
-            )
-        
-        if not user['is_active']:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is inactive"
             )
         
         # Update last login

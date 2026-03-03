@@ -20,7 +20,6 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: uuid.UUID
     username: str
-    is_active: bool
     created_at: datetime
     
     class Config:
