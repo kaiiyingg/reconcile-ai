@@ -36,7 +36,7 @@ async def register(user_data: UserRegister):
             user=UserResponse(
                 id=response.user.id,
                 email=response.user.email,
-                created_at=response.user.created_at
+                created_at=str(response.user.created_at)
             ),
             access_token=response.session.access_token,
             refresh_token=response.session.refresh_token
@@ -71,7 +71,7 @@ async def login(credentials: UserLogin):
             user=UserResponse(
                 id=response.user.id,
                 email=response.user.email,
-                created_at=response.user.created_at
+                created_at=str(response.user.created_at)
             ),
             access_token=response.session.access_token,
             refresh_token=response.session.refresh_token

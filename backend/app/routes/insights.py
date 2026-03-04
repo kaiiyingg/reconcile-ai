@@ -1,7 +1,7 @@
 """
 Insights routes: generate actionable suggestions from predictions and anomalies
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Header
 from typing import List, Dict, Any
 import psycopg2
 from psycopg2.extras import RealDictCursor
