@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     transaction_date TIMESTAMPTZ NOT NULL,
     amount NUMERIC(15,2) NOT NULL CHECK (amount <> 0),
     category TEXT NOT NULL,
-    account_id UUID,
     description TEXT,
     source TEXT NOT NULL DEFAULT 'manual'
         CHECK (source IN ('manual', 'csv_upload', 'api')),
