@@ -17,9 +17,8 @@ class AnomalyCreate(BaseModel):
 
 
 class AnomalyUpdate(BaseModel):
-    flagged: Optional[bool] = None
     reviewed: Optional[bool] = None
-    resolution_notes: Optional[str] = None
+    explanation: Optional[str] = None
 
 
 class AnomalyResponse(BaseModel):
@@ -28,13 +27,9 @@ class AnomalyResponse(BaseModel):
     transaction_id: uuid.UUID
     anomaly_score: Decimal
     severity: str
-    flagged: bool
     reviewed: bool
-    reviewed_by: Optional[uuid.UUID]
-    reviewed_at: Optional[datetime]
     explanation: Optional[str]
     shap_values: Optional[Dict[str, Any]]
-    resolution_notes: Optional[str]
     detected_at: datetime
     created_at: datetime
     

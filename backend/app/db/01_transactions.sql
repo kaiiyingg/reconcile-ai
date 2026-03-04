@@ -6,10 +6,10 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount NUMERIC(15,2) NOT NULL CHECK (amount <> 0),
     category TEXT NOT NULL,
     description TEXT,
-    source TEXT NOT NULL DEFAULT 'manual'
-        CHECK (source IN ('manual', 'csv_upload', 'api')),
+    source TEXT NOT NULL DEFAULT 'uploaded'
+        CHECK (source IN ('uploaded', 'generated')),
     status TEXT NOT NULL DEFAULT 'completed'
-        CHECK (status IN ('pending', 'completed', 'reconciled')),
+        CHECK (status IN ('completed', 'reconciled', 'flagged')),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

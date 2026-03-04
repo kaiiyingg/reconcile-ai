@@ -9,19 +9,17 @@ import uuid
 
 
 class TransactionCreate(BaseModel):
-    timestamp: datetime
+    transaction_date: datetime
     amount: Decimal
     category: str
-    account_id: Optional[str] = None
     description: Optional[str] = None
     source: str = "manual"
 
 
 class TransactionUpdate(BaseModel):
-    timestamp: Optional[datetime] = None
+    transaction_date: Optional[datetime] = None
     amount: Optional[Decimal] = None
     category: Optional[str] = None
-    account_id: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
 
@@ -29,10 +27,9 @@ class TransactionUpdate(BaseModel):
 class TransactionResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
-    timestamp: datetime
+    transaction_date: datetime
     amount: Decimal
     category: str
-    account_id: Optional[str]
     description: Optional[str]
     source: str
     status: str

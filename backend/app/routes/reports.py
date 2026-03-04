@@ -1,207 +1,98 @@
 """
-Reports routes: generate CSV and PDF reports
+Reports Routes
+Generate and export transaction reports (CSV, PDF, summary statistics)
 """
-from fastapi import APIRouter, HTTPException, Header, Query, Response
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from typing import Optional
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import pandas as pd
-import io
 from datetime import datetime
+import io
+from app.dependencies.auth import get_current_user
+from app.services import reports as reports_service
+
+router = APIRouter(
+    prefix="/api/reports",
+    tags=["Reports"]
+)
 
 
-from app.db.connection import get_db_connection
-
-router = APIRouter(prefix="/api/reports", tags=["Reports"])
-
-
-@router.get("/csv")
-async def generate_csv_report(
-    report_type: str = Query(default="transactions", regex="^(transactions|predictions|anomalies|full)$"),
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    user_id: str = Header(..., alias="x-user-id")
+@router.get("/transactions/csv")
+async def export_transactions_csv(
+    current_user: dict = Depends(get_current_user),
+    start_date: Optional[str] = Query(None, description="Start date (ISO format)"),
+    end_date: Optional[str] = Query(None, description="End date (ISO format)"),
+    category: Optional[str] = Query(None),
+    status: Optional[str] = Query(None)
 ):
-    """Generate CSV report"""
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+    """
+    Export transactions as CSV file.
+    Filters: start_date, end_date, category, status
+    """
     try:
-        if report_type == "transactions" or report_type == "full":
-            query = "SELECT * FROM transactions WHERE user_id = %s"
-            params = [user_id]
-            
-            if start_date:
-                query += " AND timestamp >= %s"
-                params.append(start_date)
-            if end_date:
-                query += " AND timestamp <= %s"
-                params.append(end_date)
-            
-            query += " ORDER BY timestamp DESC"
-            cursor.execute(query, params)
-            transactions = cursor.fetchall()
-            
-            if not transactions:
-                raise HTTPException(status_code=404, detail="No data found for report")
-            
-            df = pd.DataFrame(transactions)
-            
-            output = io.StringIO()
-            df.to_csv(output, index=False)
-            csv_content = output.getvalue()
-            
-            cursor.close()
-            conn.close()
-            
-            filename = f"transactions_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            
-            return Response(
-                content=csv_content,
-                media_type="text/csv",
-                headers={
-                    "Content-Disposition": f"attachment; filename={filename}"
-                }
-            )
+        # Parse dates if provided
+        start = datetime.fromisoformat(start_date) if start_date else None
+        end = datetime.fromisoformat(end_date) if end_date else None
         
-        elif report_type == "predictions":
-            query = "SELECT * FROM predictions WHERE user_id = %s"
-            params = [user_id]
-            
-            if start_date:
-                query += " AND forecast_date >= %s"
-                params.append(start_date)
-            if end_date:
-                query += " AND forecast_date <= %s"
-                params.append(end_date)
-            
-            query += " ORDER BY forecast_date ASC"
-            cursor.execute(query, params)
-            predictions = cursor.fetchall()
-            
-            if not predictions:
-                raise HTTPException(status_code=404, detail="No predictions found")
-            
-            df = pd.DataFrame(predictions)
-            
-            output = io.StringIO()
-            df.to_csv(output, index=False)
-            csv_content = output.getvalue()
-            
-            cursor.close()
-            conn.close()
-            
-            filename = f"predictions_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            
-            return Response(
-                content=csv_content,
-                media_type="text/csv",
-                headers={
-                    "Content-Disposition": f"attachment; filename={filename}"
-                }
-            )
+        csv_content = reports_service.generate_transaction_csv(
+            user_id=current_user["id"],
+            start_date=start,
+            end_date=end,
+            category=category,
+            status=status
+        )
         
-        elif report_type == "anomalies":
-            query = """
-                SELECT a.*, t.timestamp, t.amount, t.category
-                FROM anomalies a
-                LEFT JOIN transactions t ON a.transaction_id = t.id
-                WHERE a.user_id = %s
-            """
-            params = [user_id]
-            
-            if start_date:
-                query += " AND a.detected_at >= %s"
-                params.append(start_date)
-            if end_date:
-                query += " AND a.detected_at <= %s"
-                params.append(end_date)
-            
-            query += " ORDER BY a.detected_at DESC"
-            cursor.execute(query, params)
-            anomalies = cursor.fetchall()
-            
-            if not anomalies:
-                raise HTTPException(status_code=404, detail="No anomalies found")
-            
-            df = pd.DataFrame(anomalies)
-            
-            output = io.StringIO()
-            df.to_csv(output, index=False)
-            csv_content = output.getvalue()
-            
-            cursor.close()
-            conn.close()
-            
-            filename = f"anomalies_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            
-            return Response(
-                content=csv_content,
-                media_type="text/csv",
-                headers={
-                    "Content-Disposition": f"attachment; filename={filename}"
-                }
-            )
+        filename = f"transactions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
-    except HTTPException:
-        raise
+        return StreamingResponse(
+            io.BytesIO(csv_content),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
     except Exception as e:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
+        return {"error": str(e)}
 
 
 @router.get("/summary")
-async def get_report_summary(
-    user_id: str = Header(..., alias="x-user-id")
+async def get_summary_report(
+    current_user: dict = Depends(get_current_user)
 ):
-    """Get summary statistics for reports dashboard"""
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+    """
+    Get summary statistics report.
+    Includes totals, averages, category breakdown, status breakdown.
+    """
     try:
-        cursor.execute(
-            "SELECT COUNT(*) as total FROM transactions WHERE user_id = %s",
-            (user_id,)
+        summary = reports_service.generate_summary_report(
+            user_id=current_user["id"]
         )
-        total_transactions = cursor.fetchone()['total']
-        
-        cursor.execute(
-            "SELECT COUNT(*) as total FROM predictions WHERE user_id = %s",
-            (user_id,)
-        )
-        total_predictions = cursor.fetchone()['total']
-        
-        cursor.execute(
-            "SELECT COUNT(*) as total FROM anomalies WHERE user_id = %s",
-            (user_id,)
-        )
-        total_anomalies = cursor.fetchone()['total']
-        
-        cursor.execute(
-            """
-            SELECT SUM(amount) as total_amount
-            FROM transactions
-            WHERE user_id = %s AND status = 'completed'
-            """,
-            (user_id,)
-        )
-        total_amount = cursor.fetchone()['total_amount'] or 0
-        
-        cursor.close()
-        conn.close()
-        
-        return {
-            "total_transactions": total_transactions,
-            "total_predictions": total_predictions,
-            "total_anomalies": total_anomalies,
-            "total_amount": float(total_amount),
-            "report_types": ["transactions", "predictions", "anomalies", "full"]
-        }
+        return summary
         
     except Exception as e:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=f"Failed to get summary: {str(e)}")
+        return {"error": str(e)}
+
+
+@router.get("/predictions/csv")
+async def export_predictions_csv(
+    current_user: dict = Depends(get_current_user),
+    model_type: Optional[str] = Query(None, description="Filter by model type")
+):
+    """
+    Export predictions as CSV file.
+    Optional filter: model_type
+    """
+    try:
+        csv_content = reports_service.generate_predictions_csv(
+            user_id=current_user["id"],
+            model_type=model_type
+        )
+        
+        filename = f"predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        return StreamingResponse(
+            io.BytesIO(csv_content),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except Exception as e:
+        return {"error": str(e)}

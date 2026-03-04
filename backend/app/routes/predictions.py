@@ -1,190 +1,132 @@
 """
-Prediction routes: run prediction models, fetch predictions
+Prediction routes: Generate and fetch ML predictions for transactions
 """
-from fastapi import APIRouter, HTTPException, Header, Query
-from typing import Optional, List
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
-import random
-import uuid
-from decimal import Decimal
+from fastapi import APIRouter, HTTPException, Query, Depends
+from typing import Optional
+from datetime import datetime
 
 from app.domain.prediction import (
-    PredictionResponse,
     PredictionListResponse,
-    ForecastRequest,
-    ForecastResponse
+    ForecastRequest
 )
-from app.db.connection import get_db_connection
+from app.dependencies.auth import get_current_user
+from app.services import predictions as pred_service
 
 router = APIRouter(prefix="/api/predictions", tags=["Predictions"])
 
 
-@router.post("/run")
-async def run_predictions(
+@router.post("/generate")
+async def generate_predictions(
     forecast: ForecastRequest,
-    user_id: str = Header(..., alias="x-user-id")
+    user=Depends(get_current_user)
 ):
-    """Run prediction models for specified forecast horizon"""
+    """
+    Generate ML predictions for future transaction amounts.
     
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    - **days_ahead**: Number of days to forecast (1-90)
+    - **model_type**: Prediction model ('simple_average', 'moving_average', 'linear_trend')
     
+    Returns predictions with confidence scores.
+    """
     try:
-        cursor.execute(
-            """
-            SELECT id, timestamp, amount, category
-            FROM transactions
-            WHERE user_id = %s AND status = 'completed'
-            ORDER BY timestamp DESC
-            LIMIT 100
-            """,
-            (user_id,)
+        result = pred_service.generate_predictions(
+            user_id=user["id"],
+            days_ahead=forecast.days_ahead,
+            model_type=forecast.model_type
         )
-        transactions = cursor.fetchall()
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate predictions: {str(e)}")
+
+
+@router.get("", response_model=PredictionListResponse)
+async def get_predictions(
+    model_type: Optional[str] = Query(None, description="Filter by model type"),
+    start_date: Optional[datetime] = Query(None, description="Filter predictions after this date"),
+    end_date: Optional[datetime] = Query(None, description="Filter predictions before this date"),
+    limit: int = Query(default=100, le=1000, description="Maximum predictions to return"),
+    user=Depends(get_current_user)
+):
+    """
+    Fetch all predictions for the authenticated user.
+    
+    Optional filters:
+    - **model_type**: Filter by specific model
+    - **start_date**: Show predictions after this date
+    - **end_date**: Show predictions before this date
+    - **limit**: Max results (default 100)
+    """
+    try:
+        result = pred_service.fetch_predictions(
+            user_id=user["id"],
+            model_type=model_type,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit
+        )
+        return PredictionListResponse(**result)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to fetch predictions: {str(e)}")
+
+
+@router.get("/accuracy")
+async def get_prediction_accuracy(
+    model_type: Optional[str] = Query(None, description="Calculate accuracy for specific model"),
+    user=Depends(get_current_user)
+):
+    """
+    Get prediction accuracy metrics (MAE, RMSE, MAPE).
+    
+    Compares predictions vs actual values to measure model performance.
+    Only includes predictions where actual values are available.
+    """
+    try:
+        result = pred_service.get_prediction_accuracy(
+            user_id=user["id"],
+            model_type=model_type
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Failed to calculate accuracy: {str(e)}")
+
+
+@router.delete("/clear")
+async def clear_predictions(
+    model_type: Optional[str] = Query(None, description="Clear predictions for specific model only"),
+    user=Depends(get_current_user)
+):
+    """
+    Delete all predictions for the authenticated user.
+    
+    Optional: Specify model_type to only clear predictions from that model.
+    """
+    try:
+        # Add this function to predictions service
+        from app.db.connection import get_db_connection
         
-        if len(transactions) < 10:
-            raise HTTPException(
-                status_code=400,
-                detail="Need at least 10 transactions to generate predictions"
-            )
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        avg_amount = sum(float(t['amount']) for t in transactions) / len(transactions)
-        
-        predictions_created = 0
-        
-        for day in range(1, forecast.days_ahead + 1):
-            forecast_date = datetime.now() + timedelta(days=day)
-            
-            variation = random.uniform(0.8, 1.2)
-            predicted_amount = avg_amount * variation
-            confidence = random.uniform(0.75, 0.95)
-            
+        if model_type:
             cursor.execute(
-                """
-                INSERT INTO predictions 
-                (id, user_id, model_type, predicted_amount, confidence_score, forecast_date, model_version)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    uuid.uuid4(),
-                    user_id,
-                    forecast.model_type,
-                    round(predicted_amount, 2),
-                    round(confidence, 4),
-                    forecast_date,
-                    "v1.0"
-                )
+                "DELETE FROM predictions WHERE user_id = %s AND model_type = %s",
+                (user["id"], model_type)
             )
-            predictions_created += 1
+        else:
+            cursor.execute(
+                "DELETE FROM predictions WHERE user_id = %s",
+                (user["id"],)
+            )
         
+        deleted_count = cursor.rowcount
         conn.commit()
         cursor.close()
         conn.close()
         
         return {
-            "message": f"Generated {predictions_created} predictions",
-            "model_type": forecast.model_type,
-            "days_ahead": forecast.days_ahead,
-            "predictions_count": predictions_created
+            "message": f"Deleted {deleted_count} predictions",
+            "deleted_count": deleted_count,
+            "model_type": model_type
         }
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        conn.rollback()
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
-
-
-@router.get("", response_model=PredictionListResponse)
-async def get_predictions(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    model_type: Optional[str] = None,
-    limit: int = Query(default=100, le=1000),
-    offset: int = Query(default=0, ge=0),
-    user_id: str = Header(..., alias="x-user-id")
-):
-    """Fetch predictions with optional filters"""
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
-    try:
-        query = "SELECT * FROM predictions WHERE user_id = %s"
-        params = [user_id]
-        
-        if start_date:
-            query += " AND forecast_date >= %s"
-            params.append(start_date)
-        
-        if end_date:
-            query += " AND forecast_date <= %s"
-            params.append(end_date)
-        
-        if model_type:
-            query += " AND model_type = %s"
-            params.append(model_type)
-        
-        count_query = f"SELECT COUNT(*) as total FROM ({query}) as subquery"
-        cursor.execute(count_query, params)
-        total = cursor.fetchone()['total']
-        
-        query += " ORDER BY forecast_date ASC LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
-        
-        cursor.execute(query, params)
-        predictions = cursor.fetchall()
-        
-        cursor.close()
-        conn.close()
-        
-        return PredictionListResponse(
-            total=total,
-            predictions=[PredictionResponse(**p) for p in predictions]
-        )
-        
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=f"Failed to fetch predictions: {str(e)}")
-
-
-@router.get("/forecast", response_model=List[ForecastResponse])
-async def get_forecast(
-    days: int = Query(default=7, ge=1, le=90),
-    user_id: str = Header(..., alias="x-user-id")
-):
-    """Get forecast for next N days"""
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
-    try:
-        end_date = datetime.now() + timedelta(days=days)
-        
-        cursor.execute(
-            """
-            SELECT forecast_date, predicted_amount, confidence_score, model_type
-            FROM predictions
-            WHERE user_id = %s 
-            AND forecast_date >= NOW()
-            AND forecast_date <= %s
-            ORDER BY forecast_date ASC
-            """,
-            (user_id, end_date)
-        )
-        forecasts = cursor.fetchall()
-        
-        cursor.close()
-        conn.close()
-        
-        return [ForecastResponse(**f) for f in forecasts]
-        
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=f"Failed to fetch forecast: {str(e)}")
+        raise HTTPException(500, f"Failed to clear predictions: {str(e)}")

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -7,7 +7,10 @@ import { TransactionTable } from "@/components/dashboard/TransactionTable";
 import { PredictionChart } from "@/components/dashboard/PredictionChart";
 import { Filters } from "@/components/dashboard/Filters";
 import { LedgerComparison } from "@/components/dashboard/LedgerComparison";
-import { mockTransactions, mockChartData } from "@/data/mockData";
+import { ReportsPanel } from "@/components/dashboard/ReportsPanel";
+import { DemoDataPanel } from "@/components/DemoDataPanel";
+import { transactionAPI } from "@/services/transactions";
+import { mockChartData } from "@/data/mockData";
 
 export function DashboardLayout({ children }: { children?: React.ReactNode }) {
   return (
@@ -27,11 +30,33 @@ export default function DashboardPage() {
   const [category, setCategory] = useState("all");
   const [anomalyFilter, setAnomalyFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch transactions from API
+  const loadTransactions = async () => {
+    setLoading(true);
+    try {
+      const data = await transactionAPI.getTransactions();
+      // Ensure data is an array
+      setTransactions(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load transactions:", error);
+      setTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTransactions();
+  }, []);
 
   const filtered = useMemo(() => {
-    return mockTransactions.filter((t) => {
+    if (!Array.isArray(transactions)) return [];
+    return transactions.filter((t) => {
       if (category !== "all" && t.category !== category) return false;
-      if (anomalyFilter !== "all" && t.anomalyFlag !== anomalyFilter)
+      if (anomalyFilter !== "all" && t.anomaly_flag !== anomalyFilter)
         return false;
       if (
         search &&
@@ -41,7 +66,7 @@ export default function DashboardPage() {
         return false;
       return true;
     });
-  }, [category, anomalyFilter, search]);
+  }, [category, anomalyFilter, search, transactions]);
 
   return (
     <DashboardLayout>
@@ -53,22 +78,50 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <KPICards transactions={filtered} />
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading transactions...</p>
+          </div>
+        ) : (
+          <>
+            <DemoDataPanel onDataChanged={loadTransactions} />
 
-        <Filters
-          category={category}
-          setCategory={setCategory}
-          anomalyFilter={anomalyFilter}
-          setAnomalyFilter={setAnomalyFilter}
-          search={search}
-          setSearch={setSearch}
-        />
+            {transactions.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                <p className="text-lg font-medium mb-2">No transactions yet</p>
+                <p className="text-muted-foreground mb-4">
+                  Generate demo data or upload your own CSV to get started
+                </p>
+              </div>
+            ) : (
+              <>
+                <KPICards transactions={filtered} />
 
-        <PredictionChart data={mockChartData} />
+                <Filters
+                  category={category}
+                  setCategory={setCategory}
+                  anomalyFilter={anomalyFilter}
+                  setAnomalyFilter={setAnomalyFilter}
+                  search={search}
+                  setSearch={setSearch}
+                />
 
-        <TransactionTable transactions={filtered} />
+                <PredictionChart data={mockChartData} />
 
-        <LedgerComparison transactions={mockTransactions} />
+                <TransactionTable transactions={filtered} />
+
+                <ReportsPanel
+                  filters={{
+                    category: category !== "all" ? category : undefined,
+                  }}
+                />
+
+                <LedgerComparison transactions={transactions} />
+              </>
+            )}
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

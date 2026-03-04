@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "./Dashboard";
 import {
   Card,
@@ -8,7 +8,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, FileSpreadsheet, Filter } from "lucide-react";
+import {
+  Download,
+  FileText,
+  FileSpreadsheet,
+  Filter,
+  BarChart3,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,37 +26,141 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState("full");
   const [dateRange, setDateRange] = useState("7d");
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState<any>(null);
   const [includeColumns, setIncludeColumns] = useState({
     id: true,
     amount: true,
     category: true,
-    timestamp: true,
-    anomalyScore: true,
-    prediction: true,
-    variance: false,
+    transaction_date: true,
+    source: true,
     status: true,
+    description: true,
   });
 
-  const handleExport = (format: "csv" | "pdf") => {
-    alert(`Exporting ${reportType} report as ${format.toUpperCase()}...`);
+  useEffect(() => {
+    loadSummary();
+  }, []);
+
+  const loadSummary = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch(
+        "http://localhost:8000/api/reports/summary",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setSummary(data);
+      }
+    } catch (error) {
+      console.error("Failed to load summary:", error);
+    }
+  };
+
+  const handleExport = async (format: "csv" | "pdf") => {
+    if (format === "pdf") {
+      toast.info("PDF export coming soon");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Please log in to export reports");
+        return;
+      }
+
+      const response = await fetch(
+        "http://localhost:8000/api/reports/transactions/csv",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to download CSV");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `transactions_${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast.success("CSV report downloaded");
+    } catch (error) {
+      console.error("Failed to export:", error);
+      toast.error("Failed to export report");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleColumn = (column: keyof typeof includeColumns) => {
     setIncludeColumns((prev) => ({ ...prev, [column]: !prev[column] }));
   };
 
-  const reportStats = [
-    { label: "Total Transactions", value: "1,247" },
-    { label: "Anomalies Detected", value: "37" },
-    { label: "Anomaly Rate", value: "2.97%" },
-    { label: "Avg Transaction", value: "$8,542" },
-    { label: "Total Volume", value: "$10.65M" },
-    { label: "Reconciliation Rate", value: "98.3%" },
-  ];
+  const reportStats = summary
+    ? [
+        {
+          label: "Total Transactions",
+          value: summary.summary?.total_transactions?.toLocaleString() || "0",
+        },
+        {
+          label: "Total Revenue",
+          value: summary.summary?.total_revenue
+            ? `$${summary.summary.total_revenue.toLocaleString()}`
+            : "$0",
+        },
+        {
+          label: "Total Expenses",
+          value: summary.summary?.total_expenses
+            ? `$${Math.abs(summary.summary.total_expenses).toLocaleString()}`
+            : "$0",
+        },
+        {
+          label: "Net Amount",
+          value: summary.summary?.net_amount
+            ? `$${summary.summary.net_amount.toLocaleString()}`
+            : "$0",
+        },
+        {
+          label: "Avg Transaction",
+          value: summary.summary?.avg_amount
+            ? `$${summary.summary.avg_amount.toFixed(2)}`
+            : "$0",
+        },
+        {
+          label: "Categories",
+          value: summary.by_category?.length?.toString() || "0",
+        },
+      ]
+    : [
+        { label: "Total Transactions", value: "-" },
+        { label: "Total Revenue", value: "-" },
+        { label: "Total Expenses", value: "-" },
+        { label: "Net Amount", value: "-" },
+        { label: "Avg Transaction", value: "-" },
+        { label: "Categories", value: "-" },
+      ];
 
   return (
     <DashboardLayout>
@@ -123,12 +233,17 @@ export default function ReportsPage() {
               <Separator />
 
               <div className="flex gap-4">
-                <Button onClick={() => handleExport("csv")} className="flex-1">
+                <Button
+                  onClick={() => handleExport("csv")}
+                  disabled={loading}
+                  className="flex-1"
+                >
                   <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Export CSV
+                  {loading ? "Exporting..." : "Export CSV"}
                 </Button>
                 <Button
                   onClick={() => handleExport("pdf")}
+                  disabled={loading}
                   variant="outline"
                   className="flex-1"
                 >
@@ -169,53 +284,59 @@ export default function ReportsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Exports</CardTitle>
-            <CardDescription>Previously generated reports</CardDescription>
+            <CardTitle>Quick Export</CardTitle>
+            <CardDescription>Download your transaction data</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                {
-                  name: "Full_Report_2024-03-01.pdf",
-                  date: "2024-03-01 14:30",
-                  size: "2.4 MB",
-                  type: "pdf",
-                },
-                {
-                  name: "Anomalies_Report_2024-02-28.csv",
-                  date: "2024-02-28 09:15",
-                  size: "156 KB",
-                  type: "csv",
-                },
-                {
-                  name: "Summary_KPIs_2024-02-25.pdf",
-                  date: "2024-02-25 16:45",
-                  size: "890 KB",
-                  type: "pdf",
-                },
-              ].map((file) => (
-                <div
-                  key={file.name}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent"
-                >
-                  <div className="flex items-center gap-3">
-                    {file.type === "pdf" ? (
-                      <FileText className="h-5 w-5 text-red-500" />
-                    ) : (
-                      <FileSpreadsheet className="h-5 w-5 text-green-500" />
-                    )}
-                    <div>
-                      <p className="text-sm font-medium">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {file.date} • {file.size}
-                      </p>
-                    </div>
-                  </div>
-                  <Button size="sm" variant="ghost">
-                    <Download className="h-4 w-4" />
-                  </Button>
+              <Button
+                onClick={() => handleExport("csv")}
+                disabled={loading}
+                className="w-full justify-start"
+                variant="outline"
+              >
+                <FileSpreadsheet className="h-5 w-5 text-green-500 mr-3" />
+                <div className="text-left flex-1">
+                  <p className="text-sm font-medium">
+                    Download All Transactions (CSV)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Export complete transaction history
+                  </p>
                 </div>
-              ))}
+                <Download className="h-4 w-4" />
+              </Button>
+
+              <Button
+                onClick={() => handleExport("pdf")}
+                disabled={loading}
+                className="w-full justify-start"
+                variant="outline"
+              >
+                <FileText className="h-5 w-5 text-red-500 mr-3" />
+                <div className="text-left flex-1">
+                  <p className="text-sm font-medium">Summary Report (PDF)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Coming soon - Full summary with charts
+                  </p>
+                </div>
+                <Download className="h-4 w-4" />
+              </Button>
+
+              <Button
+                onClick={loadSummary}
+                disabled={loading}
+                className="w-full justify-start"
+                variant="outline"
+              >
+                <BarChart3 className="h-5 w-5 text-blue-500 mr-3" />
+                <div className="text-left flex-1">
+                  <p className="text-sm font-medium">Refresh Statistics</p>
+                  <p className="text-xs text-muted-foreground">
+                    Update summary data above
+                  </p>
+                </div>
+              </Button>
             </div>
           </CardContent>
         </Card>

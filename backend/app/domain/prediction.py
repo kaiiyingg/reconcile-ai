@@ -9,25 +9,22 @@ import uuid
 
 
 class PredictionCreate(BaseModel):
-    transaction_id: Optional[uuid.UUID] = None
     model_type: str
-    predicted_amount: Decimal
     forecast_date: datetime
+    predicted_value: Decimal
+    actual_value: Optional[Decimal] = None
     confidence_score: Optional[Decimal] = None
-    forecast_horizon: Optional[int] = None
+    model_version: Optional[str] = None
 
 
 class PredictionResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
-    transaction_id: Optional[uuid.UUID]
     model_type: str
-    predicted_amount: Decimal
-    actual_amount: Optional[Decimal]
-    confidence_score: Optional[Decimal]
-    prediction_date: datetime
     forecast_date: datetime
-    accuracy: Optional[Decimal]
+    predicted_value: Decimal
+    actual_value: Optional[Decimal]
+    confidence_score: Optional[Decimal]
     model_version: Optional[str]
     created_at: datetime
     
@@ -47,6 +44,6 @@ class ForecastRequest(BaseModel):
 
 class ForecastResponse(BaseModel):
     forecast_date: datetime
-    predicted_amount: Decimal
+    predicted_value: Decimal
     confidence_score: Decimal
     model_type: str

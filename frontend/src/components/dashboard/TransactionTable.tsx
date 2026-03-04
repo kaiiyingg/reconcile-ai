@@ -15,16 +15,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { Transaction } from "@/data/mockData";
 
-interface TransactionTableProps {
-  transactions: Transaction[];
-}
+type SortKey = "transaction_date" | "amount" | "category";
 
-type SortKey = "timestamp" | "amount" | "anomalyScore";
-
-export function TransactionTable({ transactions }: TransactionTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("timestamp");
+export function TransactionTable({ transactions }: { transactions: any[] }) {
+  const [sortKey, setSortKey] = useState<SortKey>("transaction_date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const toggleSort = (key: SortKey) => {
@@ -37,17 +32,32 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
 
   const sorted = [...transactions].sort((a, b) => {
     const mul = sortDir === "asc" ? 1 : -1;
-    if (sortKey === "timestamp") return mul * (new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return mul * ((a[sortKey] as number) - (b[sortKey] as number));
+    if (sortKey === "transaction_date") {
+      const dateA = new Date(a.transaction_date || a.timestamp).getTime();
+      const dateB = new Date(b.transaction_date || b.timestamp).getTime();
+      return mul * (dateA - dateB);
+    }
+    if (sortKey === "amount")
+      return mul * (Number(a.amount) - Number(b.amount));
+    if (sortKey === "category")
+      return mul * a.category.localeCompare(b.category);
+    return 0;
   });
 
   const SortIcon = ({ col }: { col: SortKey }) =>
-    sortKey === col ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 inline ml-1" /> : <ChevronDown className="h-3 w-3 inline ml-1" />) : null;
+    sortKey === col ? (
+      sortDir === "asc" ? (
+        <ChevronUp className="h-3 w-3 inline ml-1" />
+      ) : (
+        <ChevronDown className="h-3 w-3 inline ml-1" />
+      )
+    ) : null;
 
-  const flagStyles: Record<Transaction["anomalyFlag"], string> = {
+  const flagStyles: Record<string, string> = {
     high: "severity-high-bg severity-high border-severity-high/20",
     medium: "severity-medium-bg severity-medium border-severity-medium/20",
     normal: "bg-secondary text-secondary-foreground",
+    none: "bg-secondary text-secondary-foreground",
   };
 
   return (
@@ -56,19 +66,33 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider cursor-pointer" onClick={() => toggleSort("timestamp")}>
-                Timestamp <SortIcon col="timestamp" />
+              <TableHead
+                className="text-muted-foreground text-xs uppercase tracking-wider cursor-pointer"
+                onClick={() => toggleSort("transaction_date")}
+              >
+                Date <SortIcon col="transaction_date" />
               </TableHead>
-              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider">ID</TableHead>
-              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider cursor-pointer" onClick={() => toggleSort("amount")}>
+              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider">
+                ID
+              </TableHead>
+              <TableHead
+                className="text-muted-foreground text-xs uppercase tracking-wider cursor-pointer"
+                onClick={() => toggleSort("amount")}
+              >
                 Amount <SortIcon col="amount" />
               </TableHead>
-              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider">Category</TableHead>
-              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider">Predicted</TableHead>
-              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider cursor-pointer" onClick={() => toggleSort("anomalyScore")}>
-                Anomaly <SortIcon col="anomalyScore" />
+              <TableHead
+                className="text-muted-foreground text-xs uppercase tracking-wider cursor-pointer"
+                onClick={() => toggleSort("category")}
+              >
+                Category <SortIcon col="category" />
               </TableHead>
-              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider">XAI</TableHead>
+              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider">
+                Status
+              </TableHead>
+              <TableHead className="text-muted-foreground text-xs uppercase tracking-wider">
+                Source
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -79,45 +103,48 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className={`border-border hover:bg-accent/50 transition-colors ${
-                    txn.anomalyFlag === "high" ? "severity-high-bg" : ""
-                  }`}
+                  className="border-border hover:bg-accent/50 transition-colors"
                 >
                   <TableCell className="font-mono-data text-xs text-muted-foreground">
-                    {new Date(txn.timestamp).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(
+                      txn.transaction_date || txn.timestamp,
+                    ).toLocaleString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </TableCell>
-                  <TableCell className="font-mono-data text-xs">{txn.id}</TableCell>
-                  <TableCell className="font-mono-data text-sm font-medium">${txn.amount.toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs font-normal border-border text-muted-foreground">{txn.category}</Badge>
+                  <TableCell className="font-mono-data text-xs">
+                    {txn.id?.substring(0, 8)}...
                   </TableCell>
-                  <TableCell className="font-mono-data text-sm text-muted-foreground">${txn.predictedValue.toLocaleString()}</TableCell>
+                  <TableCell className="font-mono-data text-sm font-medium">
+                    $
+                    {Number(txn.amount || 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </TableCell>
                   <TableCell>
-                    <Badge className={`text-xs border ${flagStyles[txn.anomalyFlag]}`}>
-                      {txn.anomalyFlag === "high" ? "HIGH" : txn.anomalyFlag === "medium" ? "MED" : "OK"}
+                    <Badge
+                      variant="outline"
+                      className="text-xs font-normal border-border text-muted-foreground capitalize"
+                    >
+                      {txn.category}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {txn.shapValues ? (
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="h-3.5 w-3.5 text-primary cursor-pointer" />
-                        </TooltipTrigger>
-                        <TooltipContent side="left" className="max-w-xs bg-popover border-border p-3">
-                          <p className="text-xs font-medium mb-2">Feature Importance (SHAP)</p>
-                          {txn.shapValues.map((sv) => (
-                            <div key={sv.feature} className="flex items-center justify-between text-xs mb-1">
-                              <span className="text-muted-foreground">{sv.feature}</span>
-                              <span className={`font-mono-data ${sv.impact > 0 ? "severity-high" : "severity-low"}`}>
-                                {sv.impact > 0 ? "+" : ""}{sv.impact.toFixed(3)}
-                              </span>
-                            </div>
-                          ))}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
+                    <Badge
+                      variant={
+                        txn.status === "completed" ? "default" : "outline"
+                      }
+                      className="text-xs capitalize"
+                    >
+                      {txn.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground capitalize">
+                    {txn.source}
                   </TableCell>
                 </motion.tr>
               ))}

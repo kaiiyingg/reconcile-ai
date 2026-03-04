@@ -1,254 +1,173 @@
 """
-Transaction routes: upload CSV, generate mock data, fetch transactions
-User ID must be provided by frontend (from logged-in user data)
+Transaction routes
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Header
-from typing import Optional, List
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Depends
+from fastapi.responses import StreamingResponse
+from typing import Optional
+from datetime import datetime
 import pandas as pd
 import io
-from datetime import datetime, timedelta
-import random
-import uuid
 
 from app.domain.transaction import (
-    TransactionCreate,
     TransactionResponse,
     TransactionListResponse,
     CSVUploadResponse
 )
-from app.db.connection import get_db_connection
+from app.dependencies.auth import get_current_user
+from app.services import transactions as tx_service
+
 
 router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
-
 
 @router.post("/upload", response_model=CSVUploadResponse)
 async def upload_transactions(
     file: UploadFile = File(...),
-    x_user_id: str = Header(..., description="User ID from logged-in user")
+    user=Depends(get_current_user)
 ):
-    """Upload CSV/Excel file with transactions"""
-    
-    user_id = x_user_id
-    
-    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="File must be CSV or Excel format")
-    
+    if not file.filename.endswith((".csv", ".xlsx", ".xls")):
+        raise HTTPException(400, "File must be CSV or Excel format")
+
     try:
         contents = await file.read()
         
-        if file.filename.endswith('.csv'):
+        if file.filename.endswith(".csv"):
             df = pd.read_csv(io.BytesIO(contents))
         else:
             df = pd.read_excel(io.BytesIO(contents))
-        
-        required_columns = ['timestamp', 'amount', 'category']
-        if not all(col in df.columns for col in required_columns):
-            raise HTTPException(
-                status_code=400,
-                detail=f"CSV must contain columns: {', '.join(required_columns)}"
-            )
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        uploaded_count = 0
-        failed_count = 0
-        errors = []
-        
-        for idx, row in df.iterrows():
-            try:
-                cursor.execute(
-                    """
-                    INSERT INTO transactions (id, user_id, timestamp, amount, category, account_id, description, source)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        uuid.uuid4(),
-                        user_id,
-                        pd.to_datetime(row['timestamp']),
-                        float(row['amount']),
-                        str(row['category']),
-                        str(row.get('account_id', '')),
-                        str(row.get('description', '')),
-                        'csv_upload'
-                    )
-                )
-                uploaded_count += 1
-            except Exception as e:
-                failed_count += 1
-                errors.append(f"Row {idx + 1}: {str(e)}")
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
+
+        result = tx_service.upload_transactions(df, user["id"])
         
         return CSVUploadResponse(
-            message=f"Upload complete: {uploaded_count} successful, {failed_count} failed",
-            uploaded_count=uploaded_count,
-            failed_count=failed_count,
-            errors=errors[:10] if errors else None
+            message=result.get("message", "Upload complete"),
+            uploaded_count=result["uploaded_count"],
+            failed_count=result["failed_count"],
+            errors=result.get("errors")
         )
-        
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        raise HTTPException(500, str(e))
 
 
-@router.post("/generate-demo", response_model=CSVUploadResponse)
-async def generate_demo_transactions(
+@router.post("/generate-demo")
+async def generate_demo(
     count: int = Query(default=100, ge=10, le=1000),
-    x_user_id: str = Header(..., description="User ID from logged-in user")
+    user=Depends(get_current_user)
 ):
-    """Generate demo/mock transaction data"""
-    
-    user_id = x_user_id
-    
-    categories = ['Revenue', 'Expense', 'Payroll', 'Marketing', 'Operations', 'Sales', 'Refund']
-    accounts = ['ACC001', 'ACC002', 'ACC003', 'ACC004']
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
     try:
-        start_date = datetime.now() - timedelta(days=90)
-        
-        for i in range(count):
-            transaction_date = start_date + timedelta(
-                days=random.randint(0, 90),
-                hours=random.randint(0, 23),
-                minutes=random.randint(0, 59)
-            )
-            
-            category = random.choice(categories)
-            amount = random.uniform(-5000, 10000) if category == 'Expense' else random.uniform(100, 15000)
-            
-            cursor.execute(
-                """
-                INSERT INTO transactions (id, user_id, timestamp, amount, category, account_id, description, source, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    uuid.uuid4(),
-                    user_id,
-                    transaction_date,
-                    round(amount, 2),
-                    category,
-                    random.choice(accounts),
-                    f"Demo transaction {i+1}",
-                    'demo',
-                    random.choice(['completed', 'completed', 'completed', 'pending'])
-                )
-            )
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        return CSVUploadResponse(
-            message=f"Generated {count} demo transactions successfully",
-            uploaded_count=count,
-            failed_count=0
+        print(f"Generating {count} demo transactions for user {user['id']}")
+        result = tx_service.generate_demo_transactions(
+            count=count,
+            user_id=user["id"],
+            save_to_db=True,
+            clear_existing=True
         )
-        
+        print(f"Demo generation result: {result}")
+        return result
     except Exception as e:
-        conn.rollback()
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=f"Demo generation failed: {str(e)}")
+        print(f"Error generating demo: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, str(e))
+
+
+@router.get("/download-demo-csv")
+async def download_demo_csv(count: int = Query(default=100, ge=10, le=1000)):
+    try:
+        df = tx_service.generate_demo_csv(count)
+        
+        stream = io.StringIO()
+        df.to_csv(stream, index=False)
+        
+        return StreamingResponse(
+            io.BytesIO(stream.getvalue().encode()),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=demo_transactions.csv"}
+        )
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @router.get("", response_model=TransactionListResponse)
 async def get_transactions(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     category: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = Query(default=100, le=1000),
     offset: int = Query(default=0, ge=0),
-    x_user_id: str = Header(..., description="User ID from logged-in user")
+    user=Depends(get_current_user)
 ):
-    """Fetch all transactions with optional filters"""
-    
-    user_id = x_user_id
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
     try:
-        query = "SELECT * FROM transactions WHERE user_id = %s"
-        params = [user_id]
-        
-        if start_date:
-            query += " AND timestamp >= %s"
-            params.append(start_date)
-        
-        if end_date:
-            query += " AND timestamp <= %s"
-            params.append(end_date)
-        
-        if category:
-            query += " AND category = %s"
-            params.append(category)
-        
-        if status:
-            query += " AND status = %s"
-            params.append(status)
-        
-        count_query = f"SELECT COUNT(*) as total FROM ({query}) as subquery"
-        cursor.execute(count_query, params)
-        total = cursor.fetchone()['total']
-        
-        query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
-        
-        cursor.execute(query, params)
-        transactions = cursor.fetchall()
-        
-        cursor.close()
-        conn.close()
-        
-        return TransactionListResponse(
-            total=total,
-            transactions=[TransactionResponse(**t) for t in transactions]
+        result = tx_service.fetch_transactions(
+            user_id=user["id"],
+            start_date=start_date,
+            end_date=end_date,
+            category=category,
+            status=status,
+            limit=limit,
+            offset=offset
         )
-        
+        return TransactionListResponse(
+            total=result["total"],
+            transactions=result["transactions"]
+        )
     except Exception as e:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
+        raise HTTPException(500, str(e))
+
+
+@router.get("/summary")
+async def get_summary(
+    days: int = Query(default=30, ge=1, le=365),
+    user=Depends(get_current_user)
+):
+    try:
+        return tx_service.calculate_summary(user["id"], days)
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
 async def get_transaction(
     transaction_id: str,
-    x_user_id: str = Header(..., description="User ID from logged-in user")
+    user=Depends(get_current_user)
 ):
-    """Get a single transaction by ID"""
-    
-    user_id = x_user_id
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
     try:
-        cursor.execute(
-            "SELECT * FROM transactions WHERE id = %s AND user_id = %s",
-            (transaction_id, user_id)
-        )
-        transaction = cursor.fetchone()
-        
+        transaction = tx_service.fetch_transaction(transaction_id, user["id"])
         if not transaction:
-            raise HTTPException(status_code=404, detail="Transaction not found")
-        
-        cursor.close()
-        conn.close()
-        
-        return TransactionResponse(**transaction)
-        
+            raise HTTPException(404, "Transaction not found")
+        return transaction
     except HTTPException:
         raise
     except Exception as e:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(500, str(e))
+
+
+@router.patch("/{transaction_id}/status")
+async def update_status(
+    transaction_id: str,
+    status: str,
+    user=Depends(get_current_user)
+):
+    try:
+        updated = tx_service.update_transaction_status(transaction_id, user["id"], status)
+        if not updated:
+            raise HTTPException(404, "Transaction not found")
+        return updated
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@router.delete("/bulk-delete")
+async def bulk_delete(
+    source: str,
+    user=Depends(get_current_user)
+):
+    try:
+        deleted = tx_service.delete_transactions_by_source(user["id"], source)
+        return {"message": f"Deleted {deleted} transactions", "deleted_count": deleted}
+    except Exception as e:
+        raise HTTPException(500, str(e))

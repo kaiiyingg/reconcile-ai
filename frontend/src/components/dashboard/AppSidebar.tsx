@@ -1,4 +1,4 @@
-import { LayoutDashboard, Upload, TrendingUp, FileText } from "lucide-react";
+import { LayoutDashboard, TrendingUp, FileText } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -14,7 +14,6 @@ import {
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Upload", url: "/upload", icon: Upload },
   { title: "Predictions", url: "/predictions", icon: TrendingUp },
   { title: "Reports", url: "/reports", icon: FileText },
 ];

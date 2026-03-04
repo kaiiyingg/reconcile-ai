@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardPage from "./pages/Dashboard";
-import UploadPage from "./pages/Upload";
 import PredictionsPage from "./pages/Predictions";
 import ReportsPage from "./pages/Reports";
 import LoginPage from "./pages/Login";
@@ -30,14 +29,6 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DashboardPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/upload"
-              element={
-                <ProtectedRoute>
-                  <UploadPage />
                 </ProtectedRoute>
               }
             />
